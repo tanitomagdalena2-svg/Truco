@@ -20,18 +20,9 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true })); 
 
 if (process.env.DEBUG === "true") {
-    app.use(
-        cors(
-            {
-                origin: "http://localhost:3001",
-                credentials: true,
-            }
-        )
-    )
-    console.log("CORS enabled");
+    app.use(cors({ origin: "http://localhost:3001", credentials: true }));
 }
 
-// Configuración de Sesión con MongoDB
 app.use(
     session({
         name: "qid",
@@ -40,11 +31,11 @@ app.use(
         saveUninitialized: false,
         store: MongoStore.create({
             mongoUrl: process.env.MONGO_URI!,
-            touchAfter: 24 * 3600, // 1 día
+            touchAfter: 24 * 3600,
         }),
         cookie: {
             httpOnly: true,
-            maxAge: 1000 * 60 * 60 * 24, // 1 día
+            maxAge: 1000 * 60 * 60 * 24,
             sameSite: "none",
             secure: true,
         },
@@ -53,26 +44,23 @@ app.use(
 
 app.use(populateSession); 
 
-// Servir archivos estáticos del Front-end
-// Usamos '../public' porque este archivo está dentro de 'src'
+// 1. Servir archivos estáticos (IMPORTANTE: con ../)
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.use(requestLogger); 
 
-// Rutas de la API
+// 2. Rutas de la API
 app.use("/api/pusher", pusherRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/stats", statsRouter);
 
-// ESTO REEMPLAZA AL ANTERIOR: 
-// Sirve el index.html para cualquier ruta que no sea de la API
+// 3. Ruta final para el juego
 app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, '../public/index.html'));
 });
 
-export default app;
-app.use("/", (req, res) => {
+export default app;app.use("/", (req, res) => {
     res.sendFile(path.join(__dirname, '/public/index.html'));
 })
 

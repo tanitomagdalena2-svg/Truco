@@ -6,13 +6,23 @@ import { destroySession } from "../services/sessionService";
 const registerController = async (req: Request, res: Response) => {
     const { username, password } = req.body;
 
-    const newUser = await createUser(username, password);
+    try {
+        // 1. Intentamos crear el usuario
+        const newUser = await createUser(username, password);
 
-    if (!newUser) {
-        return res.status(500).send("Error creating user");
-    }
+        // 2. Si no se crea (porque createUser devuelve null si ya existe), 
+        // en lugar de dar error, vamos a intentar LOGUEARLO directamente.
+        if (!newUser) {
+            const existingUser = await authenticateUser(username, password);
+            if (existingUser) {
+                req.session.user = existingUser;
+                return res.status(200).send(existingUser); // Entra directo
+            }
+            return res.status(400).send("Nombre de usuario ocupado o error");
+        }
 
-    req.session.user = newUser;
+        // ... el resto del código igual ...
+        req.session.user = newUser;
 
     res.cookie("qid", req.sessionID, {
         httpOnly: true,
@@ -107,4 +117,5 @@ export {
     loginController,
     logoutController,
     sessionController,
+
 }

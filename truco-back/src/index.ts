@@ -1,11 +1,23 @@
 import app from "./app";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 
 dotenv.config();
 
-const port = process.env.PORT || 7860;
+const PORT = process.env.PORT || 8080;
 
-// El servidor arranca usando toda la configuración que pusimos en app.ts
-app.listen(port, () => {
-  console.log(`Servidor de Truco corriendo en puerto ${port}`);
-});
+const startServer = async () => {
+    try {
+        await mongoose.connect(process.env.MONGO_URI!, {}); // Connect to MongoAtlas db
+
+        app.listen(PORT, () => {
+            console.log(
+                `[server]: Server is running at http://localhost:${PORT}`
+            );
+        });
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+startServer();

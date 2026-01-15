@@ -15,59 +15,60 @@ import statsRouter from "./routers/statsRouter";
 dotenv.config();
 const app = express();
 
-app.use(express.json()); 
-app.use(cookieParser()); 
-app.use(express.urlencoded({ extended: true })); 
+app.use(express.json()); // for parsing json (and create req.body etc)
+app.use(cookieParser()); // for parsing cookies
+app.use(express.urlencoded({ extended: true })); // for parsing URL-encoded request bodies
 
-// CORS solo para desarrollo
-if (process.env.DEBUG === "true") {
-    app.use(cors({ origin: "http://localhost:3001", credentials: true }));
+if (process.env.DEBUG === "true") { // for development
+    app.use(
+        cors(
+            {
+                origin: "http://localhost:3001", // Without this, the frontend can't access the backend
+                credentials: true, // Origin can't be "*" when using credentials
+            }
+        )
+    )
+    console.log("CORS enabled");
 }
 
-// Configuración de Sesión con MongoDB
 app.use(
     session({
         name: "qid",
-        secret: process.env.SESSION_SECRET || "secreto_temporal",
+        secret: process.env.SESSION_SECRET as string,
         resave: false,
         saveUninitialized: false,
         store: MongoStore.create({
             mongoUrl: process.env.MONGO_URI!,
-            touchAfter: 24 * 3600,
+            touchAfter: 24 * 3600, // 1 day
         }),
         cookie: {
             httpOnly: true,
-            maxAge: 1000 * 60 * 60 * 24,
+            maxAge: 1000 * 60 * 60 * 24, // 1 day
             sameSite: "none",
             secure: true,
         },
     })
 );
 
-app.use(populateSession); 
-app.use(requestLogger); 
+app.use(populateSession); // for populating req.session.user
 
-// --- RUTAS DE LA API ---
+app.use(express.static(path.join(__dirname, 'public'))); // for serving static files
+
+app.use(requestLogger); // for logging requests and status codes
+
+// Routes
+
 app.use("/api/pusher", pusherRouter);
+
 app.use("/api/auth", authRouter);
+
 app.use("/api/friends", friendsRouter);
+
 app.use("/api/stats", statsRouter);
 
-// --- SERVIR EL FRONTEND (Matamos el "HI") ---
+app.use("/", (req, res) => {
+    res.sendFile(path.join(__dirname, '/public/index.html'));
+})
 
-// 1. Archivos estáticos (CSS, JS, Imágenes)
-// Usamos path.resolve y .. para salir de 'src' y entrar en 'public'
-const publicPath = path.resolve(__dirname, "../public");
-app.use(express.static(publicPath));
-
-// 2. Cualquier otra ruta manda el index.html (Para que React maneje el routing)
-app.get("*", (req, res) => {
-    // Si la ruta empieza con /api y no se encontró arriba, damos error 404
-    if (req.path.startsWith("/api")) {
-        return res.status(404).send({ message: "API endpoint not found" });
-    }
-    // Si es cualquier otra cosa (como la raíz), mandamos el juego
-    res.sendFile(path.join(publicPath, "index.html"));
-});
 
 export default app;

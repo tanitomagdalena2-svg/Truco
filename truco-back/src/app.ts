@@ -19,14 +19,16 @@ app.use(express.json());
 app.use(cookieParser()); 
 app.use(express.urlencoded({ extended: true })); 
 
+// CORS solo para desarrollo
 if (process.env.DEBUG === "true") {
     app.use(cors({ origin: "http://localhost:3001", credentials: true }));
 }
 
+// Configuración de Sesión con MongoDB
 app.use(
     session({
         name: "qid",
-        secret: process.env.SESSION_SECRET as string,
+        secret: process.env.SESSION_SECRET || "secreto_temporal",
         resave: false,
         saveUninitialized: false,
         store: MongoStore.create({
@@ -43,26 +45,29 @@ app.use(
 );
 
 app.use(populateSession); 
-
-// 1. Servir archivos estáticos (IMPORTANTE: con ../)
-app.use(express.static(path.join(__dirname, '../public')));
-
 app.use(requestLogger); 
 
-// 2. Rutas de la API
+// --- RUTAS DE LA API ---
 app.use("/api/pusher", pusherRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/stats", statsRouter);
 
-// 3. Ruta final para el juego
-app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, '../public/index.html'));
+// --- SERVIR EL FRONTEND (Matamos el "HI") ---
+
+// 1. Archivos estáticos (CSS, JS, Imágenes)
+// Usamos path.resolve y .. para salir de 'src' y entrar en 'public'
+const publicPath = path.resolve(__dirname, "../public");
+app.use(express.static(publicPath));
+
+// 2. Cualquier otra ruta manda el index.html (Para que React maneje el routing)
+app.get("*", (req, res) => {
+    // Si la ruta empieza con /api y no se encontró arriba, damos error 404
+    if (req.path.startsWith("/api")) {
+        return res.status(404).send({ message: "API endpoint not found" });
+    }
+    // Si es cualquier otra cosa (como la raíz), mandamos el juego
+    res.sendFile(path.join(publicPath, "index.html"));
 });
-
-export default app;app.use("/", (req, res) => {
-    res.sendFile(path.join(__dirname, '/public/index.html'));
-})
-
 
 export default app;

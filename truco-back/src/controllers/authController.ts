@@ -10,74 +10,80 @@ const registerController = async (req: Request, res: Response) => {
         // 1. Intentamos crear el usuario
         const newUser = await createUser(username, password);
 
-        // 2. Si no se crea (porque createUser devuelve null si ya existe), 
-        // en lugar de dar error, vamos a intentar LOGUEARLO directamente.
+        // 2. Si no se crea (porque ya existe), intentamos loguearlo
         if (!newUser) {
             const existingUser = await authenticateUser(username, password);
             if (existingUser) {
                 req.session.user = existingUser;
-                return res.status(200).send(existingUser); // Entra directo
+                return res.status(200).send(existingUser);
             }
             return res.status(400).send("Nombre de usuario ocupado o error");
         }
 
-        // ... el resto del código igual ...
+        // 3. Si es nuevo, creamos sesión
         req.session.user = newUser;
 
-    res.cookie("qid", req.sessionID, {
-        httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 24, // 1 day
-        sameSite: "none",
-        secure: true,
-    });
+        res.cookie("qid", req.sessionID, {
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24, // 1 day
+            sameSite: "none",
+            secure: true,
+        });
 
-    // send evything except password
-    res.status(201).send({
-        _id: newUser._id,
-        username: newUser.username,
-        rating: newUser.rating,
-        wins: newUser.wins,
-        losses: newUser.losses,
-        friends: newUser.friends,
-        friendRequests: newUser.friendRequests,
-        created_at: newUser.createdAt,
-        updated_at: newUser.updatedAt,
-    });
-}
+        return res.status(201).send({
+            _id: newUser._id,
+            username: newUser.username,
+            rating: newUser.rating,
+            wins: newUser.wins,
+            losses: newUser.losses,
+            friends: newUser.friends,
+            friendRequests: newUser.friendRequests,
+            created_at: newUser.createdAt,
+            updated_at: newUser.updatedAt,
+        });
+    } catch (error) {
+        console.error("Error en registro:", error);
+        return res.status(500).send("Error interno del servidor");
+    }
+};
 
 const loginController = async (req: Request, res: Response) => {
     const { username, password } = req.body;
 
-    const user = await authenticateUser(username, password);
+    try {
+        const user = await authenticateUser(username, password);
 
-    if (!user) {
-        return res.status(401).send("Wrong username or password");
+        if (!user) {
+            return res.status(401).send("Wrong username or password");
+        }
+
+        req.session.user = user;
+
+        res.cookie("qid", req.sessionID, {
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24, // 1 day
+            sameSite: "none",
+            secure: true,
+        });
+
+        await User.populate(user, "friends");
+        await User.populate(user, "friendRequests");
+
+        return res.status(200).send({
+            _id: user._id,
+            username: user.username,
+            rating: user.rating,
+            wins: user.wins,
+            losses: user.losses,
+            friends: user.friends,
+            friendRequests: user.friendRequests,
+            created_at: user.createdAt,
+            updated_at: user.updatedAt,
+        });
+    } catch (error) {
+        return res.status(500).send("Error en el login");
     }
-
-    req.session.user = user;
-
-    res.cookie("qid", req.sessionID, {
-        httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 24, // 1 day
-        sameSite: "none",
-        secure: true,
-    });
-
-    await User.populate(user, "friends");
-    await User.populate(user, "friendRequests");
-
-    res.status(200).send({
-        _id: user._id,
-        username: user.username,
-        rating: user.rating,
-        wins: user.wins,
-        losses: user.losses,
-        friends: user.friends,
-        friendRequests: user.friendRequests,
-        created_at: user.createdAt,
-        updated_at: user.updatedAt,
-    });
-}
+};
 
 const logoutController = async (req: Request, res: Response) => {
     if (!req.session.user) return res.status(401).send("Not logged in");
@@ -86,36 +92,39 @@ const logoutController = async (req: Request, res: Response) => {
         if (err) return res.status(500).send("Internal Server Error");
         destroySession(req.cookies.qid);
         res.clearCookie("qid");
-        res.status(200).send("Logged out");
+        return res.status(200).send("Logged out");
     });
-}
+};
 
 const sessionController = async (req: Request, res: Response) => {
-    if (!req.session.user) return res.status(401).send("Not logged in");
+    try {
+        if (!req.session.user) return res.status(401).send("Not logged in");
 
-    const user = await getUser(req.session.user.username);
-    if (!user) return res.status(500).send("Internal Server Error");
+        const user = await getUser(req.session.user.username);
+        if (!user) return res.status(500).send("Internal Server Error");
 
-    await User.populate(user, "friends");
-    await User.populate(user, "friendRequests");
+        await User.populate(user, "friends");
+        await User.populate(user, "friendRequests");
 
-    return res.status(200).send({
-        _id: user._id,
-        username: user.username,
-        rating: user.rating,
-        wins: user.wins,
-        losses: user.losses,
-        friends: user.friends,
-        friendRequests: user.friendRequests,
-        created_at: user.createdAt,
-        updated_at: user.updatedAt,
-    });
-}
+        return res.status(200).send({
+            _id: user._id,
+            username: user.username,
+            rating: user.rating,
+            wins: user.wins,
+            losses: user.losses,
+            friends: user.friends,
+            friendRequests: user.friendRequests,
+            created_at: user.createdAt,
+            updated_at: user.updatedAt,
+        });
+    } catch (error) {
+        return res.status(500).send("Error de sesión");
+    }
+};
 
 export {
     registerController,
     loginController,
     logoutController,
     sessionController,
-
-}
+};
